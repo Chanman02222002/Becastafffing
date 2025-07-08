@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+        {% block content %}
+            <h2>Scheduled Calls with Doctors</h2>
+
+            <div id='calendar'></div>
+
+            <script>
+                document.addEventListener('DOMContentLoaded', function() {
+                    var calendarEl = document.getElementById('calendar');
+
+                    var calendar = new FullCalendar.Calendar(calendarEl, {
+                        initialView: 'dayGridMonth',
+                        headerToolbar: {
+                            left: 'prev,next today',
+                            center: 'title',
+                            right: 'dayGridMonth,timeGridWeek,timeGridDay'
+                        },
+                        height: 650,
+                        events: {{ events | tojson }},
+                        
+                        // Add this block to handle event clicks:
+                        eventClick: function(info) {
+                            window.location.href = "/edit_call/" + info.event.id;
+                        }
+                    });
+
+                    calendar.render();
+                });
+            </script>
+        {% endblock %}

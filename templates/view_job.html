@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+    {% block content %}
+    <div class="card">
+    <div class="card-body">
+        <h3>{{ job.title }}</h3>
+        <p><strong>Location:</strong> {{ job.location }}</p>
+        <p><strong>Salary:</strong> {{ job.salary }}</p>
+        <p>{{ job.description }}</p>
+
+        <form method="post">
+        <button class="btn btn-primary">Express Interest</button>
+        </form>
+
+        <a href="{{ url_for('doctor_jobs') }}" class="btn btn-secondary mt-3">Back to Jobs</a>
+    </div>
+    </div>
+    {% endblock %}

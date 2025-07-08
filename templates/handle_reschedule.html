@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+        {% block content %}
+        <h2>Handle Reschedule Request</h2>
+
+        <p><strong>Doctor:</strong> {{ call.doctor.first_name }} {{ call.doctor.last_name }}</p>
+        <p><strong>Current Date & Time:</strong> {{ call.datetime }}</p>
+        <p><strong>Requested Date & Time:</strong> {{ call.reschedule_datetime }}</p>
+        <p><strong>Reason for Reschedule:</strong> {{ call.reschedule_note }}</p>
+
+        <form method="post">
+            <button name="action" value="accept" class="btn btn-success">Accept Request</button>
+            <button name="action" value="reject" class="btn btn-danger">Reject Request</button>
+        </form>
+        {% endblock %}

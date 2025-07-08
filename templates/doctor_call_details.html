@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+        {% block content %}
+        <h2>Scheduled Call Details</h2>
+
+        <p><strong>With:</strong> {{ call.scheduled_by.username }} ({{ call.scheduled_by.role }})</p>
+        <p><strong>Date & Time:</strong> {{ call.datetime }}</p>
+        <p><strong>Reason:</strong> {{ call.reason }}</p>
+        <p><strong>Status:</strong> {% if call.canceled %}Canceled{% elif call.reschedule_requested %}Reschedule Requested{% else %}Scheduled{% endif %}</p>
+
+        {% if not call.canceled %}
+        <form method="post">
+            <button name="action" value="cancel" class="btn btn-danger">Cancel Meeting</button>
+        </form>
+
+        <h3 class="mt-4">Request Reschedule</h3>
+        <form method="post">
+            <div class="mb-3">
+                <label>New Date & Time:</label>
+                <input type="datetime-local" name="reschedule_datetime" class="form-control" required>
+            </div>
+            <div class="mb-3">
+                <label>Reason for Reschedule:</label>
+                <textarea name="reschedule_note" class="form-control"></textarea>
+            </div>
+            <button name="action" value="reschedule" class="btn btn-warning">Request Reschedule</button>
+        </form>
+        {% endif %}
+        {% endblock %}
