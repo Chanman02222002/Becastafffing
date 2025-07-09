@@ -1567,11 +1567,11 @@ def edit_call(call_id):
 
 
 
-@app.route('/static/<path:filename>')
-def custom_static(filename):
-    full_path = r'C:\Users\Tubam\OneDrive\Desktop\static'
-    print(f"Serving file: {filename} from path: {full_path}")
-    return send_from_directory(full_path, filename)
+#@app.route('/static/<path:filename>')
+#def custom_static(filename):
+    #full_path = r'C:\Users\Tubam\OneDrive\Desktop\static'
+    #print(f"Serving file: {filename} from path: {full_path}")
+    #return send_from_directory(full_path, filename)
 
 @app.route('/calls')
 def calls():
