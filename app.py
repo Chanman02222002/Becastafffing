@@ -19,7 +19,7 @@ from wtforms import SelectField, DateTimeLocalField, TextAreaField, SubmitField
 import os
 from wtforms.validators import DataRequired
 
-app = Flask(__name__, static_folder=None)
+app = Flask(__name__, static_folder='static')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///crm.db'
 
 app.config['SECRET_KEY'] = 'secure-secret-key'
