@@ -2621,7 +2621,18 @@ def reset_db():
     with app.app_context():
         db.drop_all()
         db.create_all()
-    return "✅ Database has been reset!"
+
+        # Recreate your default admin user
+        admin = User(
+            username='adminchan',
+            email='admin@example.com',
+            password_hash=generate_password_hash('icecream2'),
+            role='admin'
+        )
+        db.session.add(admin)
+        db.session.commit()
+
+    return "✅ Database has been reset and admin user created!"
 
 with app.app_context():
     db.create_all()
