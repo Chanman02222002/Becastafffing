@@ -2618,8 +2618,9 @@ threading.Thread(target=lambda: (time.sleep(1), webbrowser.open('http://localhos
 
 @app.route('/reset_db')
 def reset_db():
-    db.drop_all()
-    db.create_all()
+    with app.app_context():
+        db.drop_all()
+        db.create_all()
     return "✅ Database has been reset!"
 
 with app.app_context():
