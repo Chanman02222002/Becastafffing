@@ -2616,6 +2616,12 @@ with app.app_context():
 # App initialization
 threading.Thread(target=lambda: (time.sleep(1), webbrowser.open('http://localhost:5000'))).start()
 
+@app.route('/reset_db')
+def reset_db():
+    db.drop_all()
+    db.create_all()
+    return "✅ Database has been reset!"
+
 with app.app_context():
     db.create_all()
 
