@@ -328,7 +328,7 @@ app.jinja_loader = DictLoader({
         <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow">
             <div class="container">
                 <a class="navbar-brand d-flex align-items-center" href="{{ url_for('dashboard') }}">
-                    <img src="{{ url_for('custom_static', filename='secondimagebeca2.png') }}" 
+                    <img src="{{ url_for('static', filename='secondimagebeca2.png') }}" alt="logo">
                         alt="Logo" 
                         style="height: 100px !important; width: auto !important;">
 
