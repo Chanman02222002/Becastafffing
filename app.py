@@ -16,6 +16,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import LoginManager, login_user, logout_user, login_required, UserMixin, current_user
 from flask import jsonify
 from wtforms import SelectField, DateTimeLocalField, TextAreaField, SubmitField
+import os
 from wtforms.validators import DataRequired
 
 app = Flask(__name__, static_folder=None)
@@ -2613,22 +2614,18 @@ with app.app_context():
         print("Admin user 'adminchan' created successfully!")
     else:
         print("Admin user already exists.")
-
 # App initialization
 threading.Thread(target=lambda: (time.sleep(1), webbrowser.open('http://localhost:5000'))).start()
-with app.app_context(): db.create_all()
 
-# Run the app
-app.run(debug=False)
-
-  
-# Create all tables again (just once)
 with app.app_context():
     db.create_all()
 
-
-with app.app_context():
     doctors = Doctor.query.all()
     print("Existing Doctors and Emails:")
     for doc in doctors:
+        print(doc.first_name, doc.last_name, doc.email)
+
+# Run the app
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
         print(doc.first_name, doc.last_name, doc.email) 
