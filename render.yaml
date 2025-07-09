@@ -1,7 +1,8 @@
 services:
   - type: web
-    name: becastafffing
-    env: python
-    runtime: python-3.12.3
+    name: healthcare-crm
+    runtime: python
+    plan: free
+    env: python-3.12.3
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app
