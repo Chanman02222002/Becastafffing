@@ -2196,7 +2196,7 @@ def doctor_edit_profile():
         doctor.med_grad_month_year = form.med_grad_month_year.data
         doctor.residency = form.residency.data
         doctor.residency_grad_month_year = form.residency_grad_month_year.data
-        doctor.fellowship = ",".join(form.fellowship.data)
+        doctor.fellowship = ",".join([f for f in form.fellowship.data if f])
         doctor.fellowship_grad_month_year = ",".join(form.fellowship_grad_month_year.data)
         doctor.bachelors = form.bachelors.data
         doctor.bachelors_grad_month_year = form.bachelors_grad_month_year.data
