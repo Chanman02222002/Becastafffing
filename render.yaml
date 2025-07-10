@@ -3,9 +3,8 @@ services:
     name: healthcare-crm
     runtime: python
     plan: free
-    env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.3
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
