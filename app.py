@@ -157,7 +157,11 @@ class Doctor(db.Model):
     states_willing_to_work = db.Column(db.Text)
     salary_expectations = db.Column(db.Float)
     joined = db.Column(db.DateTime, default=datetime.utcnow)
-
+    clinically_active = db.Column(db.Boolean, default=True)
+    last_active_month = db.Column(db.String(20), nullable=True)
+    last_active_year = db.Column(db.String(4), nullable=True)
+    num_malpractice_cases = db.Column(db.Integer, default=0)
+    specialty_certification = db.Column(db.String(100), nullable=True)
 
 
 
@@ -233,26 +237,67 @@ class DoctorForm(FlaskForm):
     additional_training = StringField('Additional Training', validators=[Optional()])
     sponsorship_needed = BooleanField('Sponsorship Needed?', validators=[Optional()])
 
+    clinically_active = SelectField(
+        'Currently Clinically Active?',
+        choices=[('yes', 'Yes'), ('no', 'No')],
+        validators=[DataRequired()]
+    )
+
+    last_active_month = SelectField(
+        'Last Active Month',
+        choices=[('', '-- Select Month --'), ('January','January'), ('February','February'), ('March','March'), ('April','April'), 
+                 ('May','May'), ('June','June'), ('July','July'), ('August','August'), ('September','September'), 
+                 ('October','October'), ('November','November'), ('December','December')],
+        validators=[Optional()]
+    )
+
+    last_active_year = SelectField(
+        'Last Active Year',
+        choices=[('', '-- Select Year --')] + [(str(y), str(y)) for y in range(datetime.now().year, 1970, -1)],
+        validators=[Optional()]
+    )
+
+    num_malpractice_cases = SelectField(
+        'Number of Malpractice Cases',
+        choices=[(str(i), str(i)) for i in range(0, 16)],
+        validators=[DataRequired()]
+    )
+
     malpractice_cases = FieldList(FormField(MalpracticeCaseForm), min_entries=1, max_entries=15)
 
     certification = SelectField(
-    'Certification',
-    choices=[
-        ('Board Certified', 'Board Certified'),
-        ('Board Eligible', 'Board Eligible'),
-        ('Not Boarded', 'Not Boarded')
-    ],
-    validators=[Optional()]
+        'Certification',
+        choices=[
+            ('Board Certified', 'Board Certified'),
+            ('Board Eligible', 'Board Eligible'),
+            ('Not Boarded', 'Not Boarded')
+        ],
+        validators=[Optional()]
     )
+
+    specialty_certification = StringField('Specialty Certification', validators=[Optional()])
 
     emr = StringField('EMR', validators=[Optional()])
     languages = StringField('Languages', validators=[Optional()])
 
-    states_licensed = SelectMultipleField('States Licensed', choices=[(state,state) for state in states], option_widget=CheckboxInput(), widget=ListWidget(prefix_label=False))
-    states_willing_to_work = SelectMultipleField('States Willing to Work', choices=[(state,state) for state in states], option_widget=CheckboxInput(), widget=ListWidget(prefix_label=False))
+    states_licensed = SelectMultipleField(
+        'States Licensed',
+        choices=[(state, state) for state in states],
+        option_widget=CheckboxInput(),
+        widget=ListWidget(prefix_label=False)
+    )
+
+    states_willing_to_work = SelectMultipleField(
+        'States Willing to Work',
+        choices=[(state, state) for state in states],
+        option_widget=CheckboxInput(),
+        widget=ListWidget(prefix_label=False)
+    )
+
     salary_expectations = FloatField('Salary Expectations', validators=[Optional()])
 
     submit = SubmitField('Submit')
+
 
 class ScheduledCallForm(FlaskForm):
     doctor_id = SelectField('Doctor', validators=[DataRequired()])
@@ -743,6 +788,11 @@ app.jinja_loader = DictLoader({
             <p><strong>Phone:</strong> {{ doctor.phone }}</p>
             <p><strong>Alternative Phone:</strong> {{ doctor.alt_phone }}</p>
             <p><strong>City of Residence:</strong> {{ doctor.city_of_residence }}</p>
+            <p><strong>Clinically Active:</strong> {{ 'Yes' if doctor.clinically_active else 'No' }}</p>
+            {% if not doctor.clinically_active %}
+            <p><strong>Last Active:</strong> {{ doctor.last_active_month }} {{ doctor.last_active_year }}</p>
+            {% endif %}
+            <p><strong>Specialty Certification:</strong> {{ doctor.specialty_certification or 'N/A' }}</p>
         </div>
 
         {% if doctor.medical_school %}
@@ -942,74 +992,79 @@ app.jinja_loader = DictLoader({
         </form>
     {% endblock %}''',
 
-    'doctor_edit_profile.html': '''{% extends "base.html" %}
+    'edit_doctor_profile.html': '''{% extends "base.html" %}
+    
     {% block content %}
-        <h2>Edit My Profile</h2>
-        <form method="post">
-            {{ form.hidden_tag() }}
-
-            <div class="mb-3">{{ form.position.label }} {{ form.position(class="form-select") }}</div>
-            <div class="mb-3">{{ form.specialty.label }} {{ form.specialty(class="form-control") }}</div>
-            <div class="mb-3">{{ form.subspecialty.label }} {{ form.subspecialty(class="form-control") }}</div>
-            <div class="mb-3">{{ form.first_name.label }} {{ form.first_name(class="form-control") }}</div>
-            <div class="mb-3">{{ form.last_name.label }} {{ form.last_name(class="form-control") }}</div>
-            <div class="mb-3">{{ form.email.label }} {{ form.email(class="form-control") }}</div>
-            <div class="mb-3">{{ form.phone.label }} {{ form.phone(class="form-control") }}</div>
-            <div class="mb-3">{{ form.alt_phone.label }} {{ form.alt_phone(class="form-control") }}</div>
-            <div class="mb-3">{{ form.city_of_residence.label }} {{ form.city_of_residence(class="form-control") }}</div>
-
-            <h4>MD/DO Information</h4>
-            <div class="mb-3">{{ form.medical_school.label }} {{ form.medical_school(class="form-control") }}</div>
-            <div class="mb-3">{{ form.med_grad_month_year.label }} {{ form.med_grad_month_year(class="form-control") }}</div>
-            <div class="mb-3">{{ form.residency.label }} {{ form.residency(class="form-control") }}</div>
-            <div class="mb-3">{{ form.residency_grad_month_year.label }} {{ form.residency_grad_month_year(class="form-control") }}</div>
-
-            <h4>Fellowships</h4>
-            {% for fellowship_field in form.fellowship %}
-                <div class="mb-3">{{ fellowship_field.label }} {{ fellowship_field(class="form-control") }}</div>
-            {% endfor %}
-            {% for fellowship_date_field in form.fellowship_grad_month_year %}
-                <div class="mb-3">{{ fellowship_date_field.label }} {{ fellowship_date_field(class="form-control") }}</div>
-            {% endfor %}
-
-            <h4>NP/PA Information</h4>
-            <div class="mb-3">{{ form.bachelors.label }} {{ form.bachelors(class="form-control") }}</div>
-            <div class="mb-3">{{ form.bachelors_grad_month_year.label }} {{ form.bachelors_grad_month_year(class="form-control") }}</div>
-            <div class="mb-3">{{ form.msn.label }} {{ form.msn(class="form-control") }}</div>
-            <div class="mb-3">{{ form.msn_grad_month_year.label }} {{ form.msn_grad_month_year(class="form-control") }}</div>
-            <div class="mb-3">{{ form.dnp.label }} {{ form.dnp(class="form-control") }}</div>
-            <div class="mb-3">{{ form.dnp_grad_month_year.label }} {{ form.dnp_grad_month_year(class="form-control") }}</div>
-            <div class="mb-3">{{ form.additional_training.label }} {{ form.additional_training(class="form-control") }}</div>
-            <div class="form-check mb-3">{{ form.sponsorship_needed(class="form-check-input") }} {{ form.sponsorship_needed.label(class="form-check-label") }}</div>
-
-            <h4>Certification & More</h4>
-            <div class="mb-3">{{ form.certification.label }} {{ form.certification(class="form-select") }}</div>
-            <div class="mb-3">{{ form.emr.label }} {{ form.emr(class="form-control") }}</div>
-            <div class="mb-3">{{ form.languages.label }} {{ form.languages(class="form-control") }}</div>
-
-            <h4>States Licensed</h4>
-            {% for state in form.states_licensed %}
-                <div class="form-check">{{ state }} {{ state.label }}</div>
-            {% endfor %}
-
-            <h4>States Willing to Work</h4>
-            {% for state in form.states_willing_to_work %}
-                <div class="form-check">{{ state }} {{ state.label }}</div>
-            {% endfor %}
-
-            <h4>Malpractice Cases</h4>
+    <h2>Edit My Profile</h2>
+    
+    <form method="post">
+        {{ form.hidden_tag() }}
+    
+        <div class="mb-3">{{ form.position.label }} {{ form.position(class="form-select") }}</div>
+        <div class="mb-3">{{ form.specialty.label }} {{ form.specialty(class="form-control") }}</div>
+        <div class="mb-3">{{ form.subspecialty.label }} {{ form.subspecialty(class="form-control") }}</div>
+        <div class="mb-3">{{ form.first_name.label }} {{ form.first_name(class="form-control") }}</div>
+        <div class="mb-3">{{ form.last_name.label }} {{ form.last_name(class="form-control") }}</div>
+        <div class="mb-3">{{ form.email.label }} {{ form.email(class="form-control") }}</div>
+        <div class="mb-3">{{ form.phone.label }} {{ form.phone(class="form-control") }}</div>
+        <div class="mb-3">{{ form.alt_phone.label }} {{ form.alt_phone(class="form-control") }}</div>
+        <div class="mb-3">{{ form.city_of_residence.label }} {{ form.city_of_residence(class="form-control") }}</div>
+    
+        <div class="mb-3">{{ form.clinically_active.label }} {{ form.clinically_active(class="form-select", id="clinically_active") }}</div>
+    
+        <div class="mb-3" id="last-active-fields">
+            {{ form.last_active_month.label }} {{ form.last_active_month(class="form-select") }}
+            {{ form.last_active_year.label }} {{ form.last_active_year(class="form-select mt-2") }}
+        </div>
+    
+        <div class="mb-3">{{ form.certification.label }} {{ form.certification(class="form-select") }}</div>
+        <div class="mb-3">{{ form.specialty_certification.label }} {{ form.specialty_certification(class="form-control") }}</div>
+    
+        <div class="mb-3">{{ form.num_malpractice_cases.label }} {{ form.num_malpractice_cases(class="form-select", id="num_cases") }}</div>
+    
+        <div id="malpractice_fields">
             {% for case in form.malpractice_cases %}
-                <div class="border p-3 mb-3">
-                    {{ case.incident_year.label }} {{ case.incident_year(class="form-control") }}
-                    {{ case.outcome.label }} {{ case.outcome(class="form-select") }}
-                    {{ case.payout_amount.label }} {{ case.payout_amount(class="form-control") }}
-                </div>
+            <div class="border p-3 mb-3 rounded">
+                <div class="mb-2">{{ case.incident_year.label }} {{ case.incident_year(class="form-control") }}</div>
+                <div class="mb-2">{{ case.outcome.label }} {{ case.outcome(class="form-select") }}</div>
+                <div class="mb-2">{{ case.payout_amount.label }} {{ case.payout_amount(class="form-control") }}</div>
+            </div>
             {% endfor %}
-
-            <div class="mb-3">{{ form.salary_expectations.label }} {{ form.salary_expectations(class="form-control") }}</div>
-
-            {{ form.submit(class="btn btn-success") }}
-        </form>
+        </div>
+    
+        <div class="mb-3">{{ form.salary_expectations.label }} {{ form.salary_expectations(class="form-control") }}</div>
+    
+        {{ form.submit(class="btn btn-success") }}
+    </form>
+    
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const clinicallyActive = document.getElementById('clinically_active');
+        const lastActiveFields = document.getElementById('last-active-fields');
+    
+        function toggleLastActiveFields() {
+            lastActiveFields.style.display = clinicallyActive.value === 'no' ? 'block' : 'none';
+        }
+    
+        clinicallyActive.addEventListener('change', toggleLastActiveFields);
+        toggleLastActiveFields();
+    
+        const numCases = document.getElementById('num_cases');
+        const malpracticeFields = document.getElementById('malpractice_fields');
+    
+        function updateMalpracticeFields() {
+            const selectedNum = parseInt(numCases.value);
+            const allFields = malpracticeFields.querySelectorAll('.border');
+    
+            allFields.forEach((field, index) => {
+                field.style.display = index < selectedNum ? 'block' : 'none';
+            });
+        }
+    
+        numCases.addEventListener('change', updateMalpracticeFields);
+        updateMalpracticeFields();
+    });
+    </script>
     {% endblock %}''',
 
     'doctor_jobs.html': '''{% extends "base.html" %}
@@ -1207,81 +1262,81 @@ app.jinja_loader = DictLoader({
         </form>
         {% endblock %}''',
 
-    'edit_doctor.html': '''{% extends "base.html" %}{% block content %}
-        <h2>Edit Doctor: {{ doctor.first_name }} {{ doctor.last_name }}</h2>
-        <form method="post">
-            {{ form.hidden_tag() }}
-
-            <div class="mb-3">{{ form.position.label }} {{ form.position(class="form-select") }}</div>
-            <div class="mb-3">{{ form.specialty.label }} {{ form.specialty(class="form-control") }}</div>
-            <div class="mb-3">{{ form.subspecialty.label }} {{ form.subspecialty(class="form-control") }}</div>
-            <div class="mb-3">{{ form.first_name.label }} {{ form.first_name(class="form-control") }}</div>
-            <div class="mb-3">{{ form.last_name.label }} {{ form.last_name(class="form-control") }}</div>
-            <div class="mb-3">{{ form.email.label }} {{ form.email(class="form-control") }}</div>
-            <div class="mb-3">{{ form.phone.label }} {{ form.phone(class="form-control") }}</div>
-            <div class="mb-3">{{ form.alt_phone.label }} {{ form.alt_phone(class="form-control") }}</div>
-            <div class="mb-3">{{ form.city_of_residence.label }} {{ form.city_of_residence(class="form-control") }}</div>
-
-            <h4>MD/DO Information</h4>
-            <div class="mb-3">{{ form.medical_school.label }} {{ form.medical_school(class="form-control") }}</div>
-            <div class="mb-3">{{ form.med_grad_month_year.label }} {{ form.med_grad_month_year(class="form-control") }}</div>
-            <div class="mb-3">{{ form.residency.label }} {{ form.residency(class="form-control") }}</div>
-            <div class="mb-3">{{ form.residency_grad_month_year.label }} {{ form.residency_grad_month_year(class="form-control") }}</div>
-
-            <div id="fellowship_fields">
-                {% for fellowship_field in form.fellowship %}
-                    <div class="mb-3">{{ fellowship_field.label }} {{ fellowship_field(class="form-control") }}</div>
-                {% endfor %}
-                {% for fellowship_date_field in form.fellowship_grad_month_year %}
-                    <div class="mb-3">{{ fellowship_date_field.label }} {{ fellowship_date_field(class="form-control") }}</div>
-                {% endfor %}
+    'edit_doctor.html': '''{% extends "base.html" %}
+    
+    {% block content %}
+    <h2>Edit Doctor: {{ doctor.first_name }} {{ doctor.last_name }}</h2>
+    
+    <form method="post">
+        {{ form.hidden_tag() }}
+    
+        <div class="mb-3">{{ form.position.label }} {{ form.position(class="form-select") }}</div>
+        <div class="mb-3">{{ form.specialty.label }} {{ form.specialty(class="form-control") }}</div>
+        <div class="mb-3">{{ form.subspecialty.label }} {{ form.subspecialty(class="form-control") }}</div>
+        <div class="mb-3">{{ form.first_name.label }} {{ form.first_name(class="form-control") }}</div>
+        <div class="mb-3">{{ form.last_name.label }} {{ form.last_name(class="form-control") }}</div>
+        <div class="mb-3">{{ form.email.label }} {{ form.email(class="form-control") }}</div>
+        <div class="mb-3">{{ form.phone.label }} {{ form.phone(class="form-control") }}</div>
+        <div class="mb-3">{{ form.alt_phone.label }} {{ form.alt_phone(class="form-control") }}</div>
+        <div class="mb-3">{{ form.city_of_residence.label }} {{ form.city_of_residence(class="form-control") }}</div>
+    
+        <div class="mb-3">{{ form.clinically_active.label }} {{ form.clinically_active(class="form-select", id="clinically_active") }}</div>
+    
+        <div class="mb-3" id="last-active-fields">
+            {{ form.last_active_month.label }} {{ form.last_active_month(class="form-select") }}
+            {{ form.last_active_year.label }} {{ form.last_active_year(class="form-select mt-2") }}
+        </div>
+    
+        <div class="mb-3">{{ form.certification.label }} {{ form.certification(class="form-select") }}</div>
+        <div class="mb-3">{{ form.specialty_certification.label }} {{ form.specialty_certification(class="form-control") }}</div>
+    
+        <div class="mb-3">{{ form.num_malpractice_cases.label }} {{ form.num_malpractice_cases(class="form-select", id="num_cases") }}</div>
+    
+        <div id="malpractice_fields">
+            {% for case in form.malpractice_cases %}
+            <div class="border p-3 mb-3 rounded">
+                <div class="mb-2">{{ case.incident_year.label }} {{ case.incident_year(class="form-control") }}</div>
+                <div class="mb-2">{{ case.outcome.label }} {{ case.outcome(class="form-select") }}</div>
+                <div class="mb-2">{{ case.payout_amount.label }} {{ case.payout_amount(class="form-control") }}</div>
             </div>
-
-            <h4>NP/PA Information</h4>
-            <div class="mb-3">{{ form.bachelors.label }} {{ form.bachelors(class="form-control") }}</div>
-            <div class="mb-3">{{ form.bachelors_grad_month_year.label }} {{ form.bachelors_grad_month_year(class="form-control") }}</div>
-            <div class="mb-3">{{ form.msn.label }} {{ form.msn(class="form-control") }}</div>
-            <div class="mb-3">{{ form.msn_grad_month_year.label }} {{ form.msn_grad_month_year(class="form-control") }}</div>
-            <div class="mb-3">{{ form.dnp.label }} {{ form.dnp(class="form-control") }}</div>
-            <div class="mb-3">{{ form.dnp_grad_month_year.label }} {{ form.dnp_grad_month_year(class="form-control") }}</div>
-            <div class="mb-3">{{ form.additional_training.label }} {{ form.additional_training(class="form-control") }}</div>
-            <div class="form-check mb-3">{{ form.sponsorship_needed(class="form-check-input") }} {{ form.sponsorship_needed.label(class="form-check-label") }}</div>
-
-            <h4>Malpractice Cases</h4>
-            <div>
-                {% for case in form.malpractice_cases %}
-                    <div class="border p-3 mb-3 rounded">
-                        <div class="mb-2">{{ case.incident_year.label }} {{ case.incident_year(class="form-control") }}</div>
-                        <div class="mb-2">{{ case.outcome.label }} {{ case.outcome(class="form-select") }}</div>
-                        <div class="mb-2">{{ case.payout_amount.label }} {{ case.payout_amount(class="form-control") }}</div>
-                    </div>
-                {% endfor %}
-            </div>
-
-            <div class="mb-3">{{ form.certification.label }} {{ form.certification(class="form-select") }}</div>
-            <div class="mb-3">{{ form.emr.label }} {{ form.emr(class="form-control") }}</div>
-            <div class="mb-3">{{ form.languages.label }} {{ form.languages(class="form-control") }}</div>
-
-            <div class="mb-3">
-                {{ form.states_licensed.label }}
-                {% for state in form.states_licensed %}
-                    <div class="form-check">{{ state }} {{ state.label }}</div>
-                {% endfor %}
-            </div>
-
-            <div class="mb-3">
-                {{ form.states_willing_to_work.label }}
-                {% for state in form.states_willing_to_work %}
-                    <div class="form-check">{{ state }} {{ state.label }}</div>
-                {% endfor %}
-            </div>
-
-            <div class="mb-3">{{ form.salary_expectations.label }} {{ form.salary_expectations(class="form-control") }}</div>
-
-            {{ form.submit(class="btn btn-success") }}
-        </form>
-        {% endblock %}'''
-         })
+            {% endfor %}
+        </div>
+    
+        <div class="mb-3">{{ form.salary_expectations.label }} {{ form.salary_expectations(class="form-control") }}</div>
+    
+        {{ form.submit(class="btn btn-success") }}
+    </form>
+    
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const clinicallyActive = document.getElementById('clinically_active');
+        const lastActiveFields = document.getElementById('last-active-fields');
+    
+        function toggleLastActiveFields() {
+            lastActiveFields.style.display = clinicallyActive.value === 'no' ? 'block' : 'none';
+        }
+    
+        clinicallyActive.addEventListener('change', toggleLastActiveFields);
+        toggleLastActiveFields();
+    
+        const numCases = document.getElementById('num_cases');
+        const malpracticeFields = document.getElementById('malpractice_fields');
+    
+        function updateMalpracticeFields() {
+            const selectedNum = parseInt(numCases.value);
+            const allFields = malpracticeFields.querySelectorAll('.border');
+    
+            allFields.forEach((field, index) => {
+                field.style.display = index < selectedNum ? 'block' : 'none';
+            });
+        }
+    
+        numCases.addEventListener('change', updateMalpracticeFields);
+        updateMalpracticeFields();
+    });
+    </script>
+    {% endblock %}'''
+             })
 
 # Routes
 @app.route('/')
@@ -2164,6 +2219,20 @@ def doctor_edit_profile():
         doctor.states_licensed = ",".join(form.states_licensed.data)
         doctor.states_willing_to_work = ",".join(form.states_willing_to_work.data)
         doctor.salary_expectations = form.salary_expectations.data
+        doctor.clinically_active = form.clinically_active.data
+        doctor.last_active_month = form.last_active_month.data or None
+        doctor.last_active_year = form.last_active_year.data or None
+        doctor.specialty_certification = form.specialty_certification.data or None
+    
+        # Malpractice cases should match num_malpractice_cases chosen:
+        num_cases = int(form.num_malpractice_cases.data)
+        doctor.malpractice_cases = json.dumps([
+            {
+                'incident_year': case_form.incident_year.data,
+                'outcome': case_form.outcome.data,
+                'payout_amount': case_form.payout_amount.data or 0
+            } for case_form in form.malpractice_cases[:num_cases]
+        ])
 
         db.session.commit()
         flash('Profile updated successfully!', 'success')
@@ -2229,6 +2298,11 @@ def doctor_edit_profile():
             form.fellowship_grad_month_year.append_entry(date)
         while len(form.fellowship_grad_month_year.entries) < form.fellowship_grad_month_year.min_entries:
             form.fellowship_grad_month_year.append_entry()
+        form.clinically_active.data = 'yes' if doctor.clinically_active == 'yes' else 'no'
+        form.last_active_month.data = doctor.last_active_month or ''
+        form.last_active_year.data = doctor.last_active_year or ''
+        form.num_malpractice_cases.data = str(len(json.loads(doctor.malpractice_cases or '[]')))
+        form.specialty_certification.data = doctor.specialty_certification or ''
 
     return render_template('doctor_edit_profile.html', form=form, doctor=doctor)
 
@@ -2477,7 +2551,6 @@ def edit_doctor(doctor_id):
                 flash('Another doctor with this email already exists.', 'danger')
                 return redirect(url_for('edit_doctor', doctor_id=doctor_id))
 
-            # Populate simple fields explicitly
             doctor.position = form.position.data
             doctor.specialty = form.specialty.data
             doctor.subspecialty = form.subspecialty.data
@@ -2491,6 +2564,8 @@ def edit_doctor(doctor_id):
             doctor.med_grad_month_year = form.med_grad_month_year.data
             doctor.residency = form.residency.data
             doctor.residency_grad_month_year = form.residency_grad_month_year.data
+            doctor.fellowship = ",".join(form.fellowship.data)
+            doctor.fellowship_grad_month_year = ",".join(form.fellowship_grad_month_year.data)
             doctor.bachelors = form.bachelors.data
             doctor.bachelors_grad_month_year = form.bachelors_grad_month_year.data
             doctor.msn = form.msn.data
@@ -2499,16 +2574,21 @@ def edit_doctor(doctor_id):
             doctor.dnp_grad_month_year = form.dnp_grad_month_year.data
             doctor.additional_training = form.additional_training.data
             doctor.sponsorship_needed = form.sponsorship_needed.data
+
+            # New fields
+            doctor.clinically_active = (form.clinically_active.data == 'yes')
+            doctor.last_active_month = form.last_active_month.data or None
+            doctor.last_active_year = form.last_active_year.data or None
+            doctor.num_malpractice_cases = int(form.num_malpractice_cases.data)
+            doctor.specialty_certification = form.specialty_certification.data
+
             doctor.certification = form.certification.data
             doctor.emr = form.emr.data
             doctor.languages = form.languages.data
             doctor.salary_expectations = form.salary_expectations.data
-
-            # Explicitly handle multi-select fields:
             doctor.states_licensed = ",".join(form.states_licensed.data)
             doctor.states_willing_to_work = ",".join(form.states_willing_to_work.data)
 
-            # Explicitly handle Malpractice Cases JSON:
             doctor.malpractice_cases = json.dumps([
                 {
                     'incident_year': case_form.incident_year.data,
@@ -2517,21 +2597,13 @@ def edit_doctor(doctor_id):
                 } for case_form in form.malpractice_cases
             ])
 
-            # Explicitly handle Fellowship fields:
-            doctor.fellowship = ",".join(form.fellowship.data)
-            doctor.fellowship_grad_month_year = ",".join(form.fellowship_grad_month_year.data)
-
             db.session.commit()
             flash('Doctor information updated successfully!', 'success')
             return redirect(url_for('doctor_profile', doctor_id=doctor.id))
         else:
             flash(f"Form errors: {form.errors}", 'danger')
 
-    # Correct pre-fill for GET requests
     if request.method == 'GET':
-        form = DoctorForm()
-
-        # Populate simple fields manually
         form.position.data = doctor.position
         form.specialty.data = doctor.specialty
         form.subspecialty.data = doctor.subspecialty
@@ -2553,44 +2625,27 @@ def edit_doctor(doctor_id):
         form.dnp_grad_month_year.data = doctor.dnp_grad_month_year
         form.additional_training.data = doctor.additional_training
         form.sponsorship_needed.data = doctor.sponsorship_needed
-        form.certification.data = doctor.certification
-        form.emr.data = doctor.emr
-        form.languages.data = doctor.languages
-        form.salary_expectations.data = doctor.salary_expectations
 
-        # Populate multi-select fields
+        form.clinically_active.data = 'yes' if doctor.clinically_active else 'no'
+        form.last_active_month.data = doctor.last_active_month or ''
+        form.last_active_year.data = doctor.last_active_year or ''
+        form.num_malpractice_cases.data = str(doctor.num_malpractice_cases)
+        form.specialty_certification.data = doctor.specialty_certification
+
         form.states_licensed.data = doctor.states_licensed.split(",") if doctor.states_licensed else []
         form.states_willing_to_work.data = doctor.states_willing_to_work.split(",") if doctor.states_willing_to_work else []
 
-        # Populate Malpractice cases safely
         malpractice_cases = json.loads(doctor.malpractice_cases or '[]')
+        form.num_malpractice_cases.data = str(len(malpractice_cases))
         form.malpractice_cases.entries.clear()
-        for case in malpractice_cases[:form.malpractice_cases.max_entries]:
+        for case in malpractice_cases:
             form.malpractice_cases.append_entry({
                 'incident_year': case.get('incident_year', ''),
                 'outcome': case.get('outcome', ''),
                 'payout_amount': case.get('payout_amount', 0)
             })
-        while len(form.malpractice_cases.entries) < form.malpractice_cases.min_entries:
+        while len(form.malpractice_cases.entries) < form.malpractice_cases.max_entries:
             form.malpractice_cases.append_entry()
-
-        # Populate Fellowship fields safely
-        fellowships = doctor.fellowship.split(",") if doctor.fellowship else []
-        fellowship_dates = doctor.fellowship_grad_month_year.split(",") if doctor.fellowship_grad_month_year else []
-
-        form.fellowship.entries.clear()
-        for fellowship in fellowships:
-            form.fellowship.append_entry(fellowship)
-        while len(form.fellowship.entries) < form.fellowship.min_entries:
-            form.fellowship.append_entry()
-
-        form.fellowship_grad_month_year.entries.clear()
-        for date in fellowship_dates:
-            form.fellowship_grad_month_year.append_entry(date)
-        while len(form.fellowship_grad_month_year.entries) < form.fellowship_grad_month_year.min_entries:
-            form.fellowship_grad_month_year.append_entry()
-
-
 
     return render_template('edit_doctor.html', form=form, doctor=doctor)
 
