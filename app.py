@@ -992,7 +992,7 @@ app.jinja_loader = DictLoader({
         </form>
     {% endblock %}''',
 
-    'edit_doctor_profile.html': '''{% extends "base.html" %}
+    'doctor_edit_profile.html': '''{% extends "base.html" %}
     
     {% block content %}
     <h2>Edit My Profile</h2>
