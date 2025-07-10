@@ -18,6 +18,8 @@ from flask import jsonify
 from wtforms import SelectField, DateTimeLocalField, TextAreaField, SubmitField
 import os
 from wtforms.validators import DataRequired
+from wtforms import FormField, FieldList, SelectField, StringField
+from wtforms.validators import Optional
 
 app = Flask(__name__, static_folder='static')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///crm.db'
@@ -993,7 +995,7 @@ app.jinja_loader = DictLoader({
     {% endblock %}''',
 
     'doctor_edit_profile.html': '''{% extends "base.html" %}
-    
+
     {% block content %}
     <h2>Edit My Profile</h2>
     
@@ -2182,7 +2184,6 @@ def doctor_edit_profile():
     form = DoctorForm()
 
     if form.validate_on_submit():
-        # Update doctor fields from form explicitly
         doctor.position = form.position.data
         doctor.specialty = form.specialty.data
         doctor.subspecialty = form.subspecialty.data
@@ -2206,106 +2207,63 @@ def doctor_edit_profile():
         doctor.dnp_grad_month_year = form.dnp_grad_month_year.data
         doctor.additional_training = form.additional_training.data
         doctor.sponsorship_needed = form.sponsorship_needed.data
-        doctor.malpractice_cases = json.dumps([
-            {
-                'incident_year': case.incident_year.data,
-                'outcome': case.outcome.data,
-                'payout_amount': case.payout_amount.data
-            } for case in form.malpractice_cases
-        ])
         doctor.certification = form.certification.data
         doctor.emr = form.emr.data
         doctor.languages = form.languages.data
         doctor.states_licensed = ",".join(form.states_licensed.data)
         doctor.states_willing_to_work = ",".join(form.states_willing_to_work.data)
         doctor.salary_expectations = form.salary_expectations.data
-        doctor.clinically_active = form.clinically_active.data
+        doctor.clinically_active = form.clinically_active.data == 'yes'
         doctor.last_active_month = form.last_active_month.data or None
         doctor.last_active_year = form.last_active_year.data or None
         doctor.specialty_certification = form.specialty_certification.data or None
-    
-        # Malpractice cases should match num_malpractice_cases chosen:
+
         num_cases = int(form.num_malpractice_cases.data)
-        doctor.malpractice_cases = json.dumps([
-            {
-                'incident_year': case_form.incident_year.data,
-                'outcome': case_form.outcome.data,
+        malpractice_data = []
+        for i in range(num_cases):
+            case_form = form.malpractice_cases.entries[i].form
+            malpractice_entry = {
+                'incident_year': case_form.incident_year.data or '',
+                'outcome': case_form.outcome.data or '',
                 'payout_amount': case_form.payout_amount.data or 0
-            } for case_form in form.malpractice_cases[:num_cases]
-        ])
+            }
+            malpractice_data.append(malpractice_entry)
+
+        doctor.malpractice_cases = json.dumps(malpractice_data)
 
         db.session.commit()
         flash('Profile updated successfully!', 'success')
         return redirect(url_for('doctor_dashboard'))
 
     elif request.method == 'GET':
-        # Explicitly pre-fill simple fields
-        form.position.data = doctor.position
-        form.specialty.data = doctor.specialty
-        form.subspecialty.data = doctor.subspecialty
-        form.first_name.data = doctor.first_name
-        form.last_name.data = doctor.last_name
-        form.email.data = doctor.email
-        form.phone.data = doctor.phone
-        form.alt_phone.data = doctor.alt_phone
-        form.city_of_residence.data = doctor.city_of_residence
-        form.medical_school.data = doctor.medical_school
-        form.med_grad_month_year.data = doctor.med_grad_month_year
-        form.residency.data = doctor.residency
-        form.residency_grad_month_year.data = doctor.residency_grad_month_year
-        form.bachelors.data = doctor.bachelors
-        form.bachelors_grad_month_year.data = doctor.bachelors_grad_month_year
-        form.msn.data = doctor.msn
-        form.msn_grad_month_year.data = doctor.msn_grad_month_year
-        form.dnp.data = doctor.dnp
-        form.dnp_grad_month_year.data = doctor.dnp_grad_month_year
-        form.additional_training.data = doctor.additional_training
-        form.sponsorship_needed.data = doctor.sponsorship_needed
-        form.certification.data = doctor.certification
-        form.emr.data = doctor.emr
-        form.languages.data = doctor.languages
-        form.salary_expectations.data = doctor.salary_expectations
-
-        # Multi-select fields explicitly
+        form.process(obj=doctor)
         form.states_licensed.data = doctor.states_licensed.split(",") if doctor.states_licensed else []
         form.states_willing_to_work.data = doctor.states_willing_to_work.split(",") if doctor.states_willing_to_work else []
+        form.clinically_active.data = 'yes' if doctor.clinically_active else 'no'
+        form.last_active_month.data = doctor.last_active_month or ''
+        form.last_active_year.data = doctor.last_active_year or ''
+        form.specialty_certification.data = doctor.specialty_certification or ''
 
-        # Malpractice cases (ensuring maximum entries limit)
         malpractice_cases = json.loads(doctor.malpractice_cases or '[]')
-        form.malpractice_cases.entries.clear()
-        for case in malpractice_cases[:form.malpractice_cases.max_entries]:
-            form.malpractice_cases.append_entry({
-                'incident_year': case.get('incident_year', ''),
-                'outcome': case.get('outcome', ''),
-                'payout_amount': case.get('payout_amount', 0)
-            })
+        form.num_malpractice_cases.data = str(len(malpractice_cases))
+        form.malpractice_cases.entries = []
+        for case in malpractice_cases:
+            form.malpractice_cases.append_entry(case)
+
         while len(form.malpractice_cases.entries) < form.malpractice_cases.min_entries:
             form.malpractice_cases.append_entry()
 
-        # Fellowships with a safe maximum (e.g., 10)
-        MAX_FELLOWSHIPS = 10
         fellowships = doctor.fellowship.split(",") if doctor.fellowship else []
         fellowship_dates = doctor.fellowship_grad_month_year.split(",") if doctor.fellowship_grad_month_year else []
+        form.fellowship.entries = []
+        form.fellowship_grad_month_year.entries = []
 
-        form.fellowship.entries.clear()
-        for fellowship in fellowships[:MAX_FELLOWSHIPS]:
+        for fellowship in fellowships:
             form.fellowship.append_entry(fellowship)
-        while len(form.fellowship.entries) < form.fellowship.min_entries:
-            form.fellowship.append_entry()
-
-        form.fellowship_grad_month_year.entries.clear()
-        for date in fellowship_dates[:MAX_FELLOWSHIPS]:
+        for date in fellowship_dates:
             form.fellowship_grad_month_year.append_entry(date)
-        while len(form.fellowship_grad_month_year.entries) < form.fellowship_grad_month_year.min_entries:
-            form.fellowship_grad_month_year.append_entry()
-        form.clinically_active.data = 'yes' if doctor.clinically_active == 'yes' else 'no'
-        form.last_active_month.data = doctor.last_active_month or ''
-        form.last_active_year.data = doctor.last_active_year or ''
-        form.num_malpractice_cases.data = str(len(json.loads(doctor.malpractice_cases or '[]')))
-        form.specialty_certification.data = doctor.specialty_certification or ''
 
     return render_template('doctor_edit_profile.html', form=form, doctor=doctor)
-
 
     # Pre-fill form fields safely on GET
     if request.method == 'GET':
